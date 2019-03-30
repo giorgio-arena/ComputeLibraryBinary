@@ -1282,6 +1282,14 @@ inline TensorShape compute_gather_shape(const TensorShape &input_shape, const Te
 
     return output_shape;
 }
+
+inline TensorShape compute_binary_sign_shape(const TensorShape &src_shape)
+{
+    TensorShape dst_shape = src_shape;
+    dst_shape[0] = static_cast<size_t>(ceil(dst_shape[0] / 8.f));
+
+    return dst_shape;
+}
 } // namespace shape_calculator
 } // namespace misc
 } // namespace arm_compute
