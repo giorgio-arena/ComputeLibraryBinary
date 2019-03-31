@@ -57,21 +57,21 @@ public:
      *
      * @param[in]  input  Source tensor. Data types supported: F32.
      * @param[out] output Destination tensor. Data types supported: U8.
-     * @param[out] alpha  Alpha tensor. It contains the mean over absolute values of each 3D input block.
+     * @param[out] alpha  (Optional) Alpha tensor. It contains the mean over absolute values of each 3D input block.
      *                    Data types supported: F32.
      */
-    void configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha);
+    void configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha = nullptr);
     
     /** Static function to check if given info will lead to a valid configuration of @ref CLBinarySignKernel
      *
      * @param[in] input  Source tensor. Data types supported: F32.
      * @param[in] output Destination tensor. Data types supported: U8.
-     * @param[in] alpha  Alpha tensor. It contains the mean over absolute values of each 3D input block.
+     * @param[in] alpha  (Optional) Alpha tensor. It contains the mean over absolute values of each 3D input block.
      *                    Data types supported: F32.
      *
      * @return a status
      */
-    static Status validate(const ITensorInfo *input, const ITensorInfo *output, const ITensorInfo *alpha);
+    static Status validate(const ITensorInfo *input, const ITensorInfo *output, const ITensorInfo *alpha = nullptr);
 
     // Inherited methods overridden:
     void run(const Window &window, cl::CommandQueue &queue) override;

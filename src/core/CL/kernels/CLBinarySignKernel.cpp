@@ -39,10 +39,9 @@ namespace
 {
 Status validate_arguments(const ITensorInfo *input, const ITensorInfo *output, const ITensorInfo *alpha)
 {
-    ARM_COMPUTE_RETURN_ERROR_ON_NULLPTR(input, output, alpha);
+    ARM_COMPUTE_RETURN_ERROR_ON_NULLPTR(input, output);
     ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(input, 1, DataType::F32);
     ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(output, 1, DataType::U8);
-    ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(alpha, 1, DataType::F32);
 
     // Checks performed when output is configured
     if(output->total_size() != 0)
@@ -51,8 +50,9 @@ Status validate_arguments(const ITensorInfo *input, const ITensorInfo *output, c
     }
     
     // Checks performed when alpha is configured
-    if(alpha->total_size() != 0)
+    if(alpha != nullptr && alpha->total_size() != 0)
     {
+        ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(alpha, 1, DataType::F32);
         ARM_COMPUTE_RETURN_ERROR_ON_MISMATCHING_DIMENSIONS(alpha->tensor_shape(), TensorShape(input->tensor_shape().total_size_upper(3)));
     }
 
@@ -64,6 +64,10 @@ std::pair<Status, Window> validate_and_configure_window(ITensorInfo *input, ITen
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, output);
     // Output auto inizialitation if not yet initialized
     auto_init_if_empty(*output, input->clone()->set_tensor_shape(compute_binary_sign_shape(input->tensor_shape())));
+    if(alpha != nullptr)
+    {
+        auto_init_if_empty(*output, input->clone()->set_tensor_shape(TensorShape(input->tensor_shape().total_size_upper(3))));
+    }
 
     constexpr unsigned int num_elems_read_per_iteration = 8;
     constexpr unsigned int num_elems_written_per_iteration = num_elems_read_per_iteration / 8;
@@ -85,14 +89,14 @@ std::pair<Status, Window> validate_and_configure_window(ITensorInfo *input, ITen
 } // namespace
 
 CLBinarySignKernel::CLBinarySignKernel()
-    : _input(nullptr), _output(nullptr)
+    : _input(nullptr), _output(nullptr), _alpha(nullptr)
 {
 }
 
 void CLBinarySignKernel::configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha)
 {
-    ARM_COMPUTE_ERROR_ON_NULLPTR(input, output, alpha);
-    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(input->info(), output->info(), alpha->info()));
+    ARM_COMPUTE_ERROR_ON_NULLPTR(input, output);
+    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(input->info(), output->info(), alpha ? alpha->info() : nullptr));
 
     _input  = input;
     _output = output;
@@ -101,11 +105,11 @@ void CLBinarySignKernel::configure(const ICLTensor *input, ICLTensor *output, IC
     // Create kernel
     CLBuildOptions build_opts;
     build_opts.add_option("-DSRC_WIDTH=" + support::cpp11::to_string(_input->info()->tensor_shape()[0]));
-    build_opts.add_option("-DNUM_ELEMS=" + support::cpp11::to_string(_input->info()->tensor_shape().total_size_lower(2)));
+    build_opts.add_option_if(alpha != nullptr, "-DCALCULATE_ALPHA");
     _kernel = static_cast<cl::Kernel>(CLKernelLibrary::get().create_kernel("binary_sign", build_opts.options()));
 
     // Configure kernel window
-    auto win_config = validate_and_configure_window(input->info(), output->info(), alpha->info());
+    auto win_config = validate_and_configure_window(input->info(), output->info(), (alpha != nullptr) ? alpha->info() : nullptr);
     ARM_COMPUTE_ERROR_THROW_ON(win_config.first);
     
     ICLKernel::configure_internal(win_config.second);
@@ -113,9 +117,9 @@ void CLBinarySignKernel::configure(const ICLTensor *input, ICLTensor *output, IC
 
 Status CLBinarySignKernel::validate(const ITensorInfo *input, const ITensorInfo *output, const ITensorInfo *alpha)
 {
-    ARM_COMPUTE_ERROR_ON_NULLPTR(input, output, alpha);
+    ARM_COMPUTE_ERROR_ON_NULLPTR(input, output);
     ARM_COMPUTE_RETURN_ON_ERROR(validate_arguments(input, output, alpha));
-    ARM_COMPUTE_RETURN_ON_ERROR(validate_and_configure_window(input->clone().get(), output->clone().get(), alpha->clone().get()).first);
+    ARM_COMPUTE_RETURN_ON_ERROR(validate_and_configure_window(input->clone().get(), output->clone().get(), (alpha != nullptr) ? alpha->clone().get() : nullptr).first);
     return Status{};
 }
 
@@ -132,16 +136,23 @@ void CLBinarySignKernel::run(const Window &window, cl::CommandQueue &queue)
         unsigned int idx = 0;
         add_3D_tensor_argument(idx, _input, slice);
         add_3D_tensor_argument(idx, _output, slice);
-        add_1D_tensor_argument(idx, _alpha, slice);
-        _kernel.setArg(idx++, batch++);
+        if(_alpha != nullptr)
+        {
+            add_1D_tensor_argument(idx, _alpha, slice);
+            _kernel.setArg(idx++, batch++);
+        }
         enqueue(queue, *this, slice);
     }
     while(window.slide_window_slice_3D(slice));
     
-    _alpha->map(queue);
-    for(size_t i =0; i < _alpha->info()->dimension(0); ++i)
+    // Normalize alpha values
+    if(_alpha != nullptr)
     {
-        *reinterpret_cast<float *>(_alpha->ptr_to_element(Coordinates(i))) /= _input->info()->tensor_shape().total_size_lower(3);
+        _alpha->map(queue);
+        for(size_t i =0; i < _alpha->info()->dimension(0); ++i)
+        {
+            *reinterpret_cast<float *>(_alpha->ptr_to_element(Coordinates(i))) /= _input->info()->tensor_shape().total_size_lower(3);
+        }
+        _alpha->unmap(queue);
     }
-    _alpha->unmap(queue);
 }

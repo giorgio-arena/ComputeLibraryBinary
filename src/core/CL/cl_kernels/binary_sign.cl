@@ -25,6 +25,7 @@
 
 #if defined(SRC_WIDTH)
 
+#if defined(CALCULATE_ALPHA)
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 
 typedef union
@@ -43,6 +44,7 @@ inline void atomic_fadd(__global float *addr, const float sum)
         new.f = old.f + sum;
     } while(atom_cmpxchg((__global unsigned int *)addr, old.i, new.i) != old.i);
 }
+#endif // defined(CALCULATE_ALPHA)
 
 /** This function computes the bitwise AND of two input images.
  *
@@ -71,14 +73,20 @@ inline void atomic_fadd(__global float *addr, const float sum)
  */
 __kernel void binary_sign(
     TENSOR3D_DECLARATION(src),
-    TENSOR3D_DECLARATION(dst),
+    TENSOR3D_DECLARATION(dst)
+#if defined(CALCULATE_ALPHA)
+    ,
     VECTOR_DECLARATION(alpha),
-    uint batch)
+    uint batch
+#endif // defined(CALCULATE_ALPHA)
+)
 {
     // Calculate input/output addresses
     Tensor3D src = CONVERT_TO_TENSOR3D_STRUCT(src);
     __global uchar *dst_addr = dst_ptr + dst_offset_first_element_in_bytes + get_global_id(0) * dst_stride_x + get_global_id(1) * dst_step_y + get_global_id(2) * dst_step_z;
+#if defined(CALCULATE_ALPHA)
     __global uchar *alpha_addr = alpha_ptr + alpha_offset_first_element_in_bytes + batch * alpha_stride_x;
+#endif // defined(CALCULATE_ALPHA)
     
     // Load values
     float8 src_vals = vload8(0, (__global float *)src.ptr);
@@ -90,7 +98,7 @@ __kernel void binary_sign(
     // Calculate sign of elements
     uchar8 signs = select((uchar8)0, (uchar8)1, convert_uchar8(src_vals > (float8)0));
     
-    // Write in a single byte
+    // Convert into a single byte
     uchar dst_val = 0;
     dst_val |= (signs.s0 << 7);
     dst_val |= (signs.s1 << 6);
@@ -101,24 +109,20 @@ __kernel void binary_sign(
     dst_val |= (signs.s6 << 1);
     dst_val |= (signs.s7);
     
-    // Write to output tensor
-    *dst_addr = dst_val;
-    
-    // Write to alpha tensor
+#if defined(CALCULATE_ALPHA)
+    // Calculate sum of absolute over all input values
     float8 abs_vals = fabs(src_vals);
     float sum = abs_vals.s0 + abs_vals.s1 + abs_vals.s2 + abs_vals.s3 +
                 abs_vals.s4 + abs_vals.s5 + abs_vals.s6 + abs_vals.s7;
+#endif // defined(CALCULATE_ALPHA)
     
+    // Write to output tensor
+    *dst_addr = dst_val;
+    
+#if defined(CALCULATE_ALPHA)
+    // Write to alpha tensor  
     atomic_fadd((__global float *)alpha_addr, sum);
-    
-    // If it is the last thread of the 3D block, divide the corresponding alpha value by its total amount of values
-    /*bool is_last_thread = (get_global_id(0) == (get_global_size(0) - 1) && get_global_id(1) == (get_global_size(1) - 1) && get_global_id(2) == (get_global_size(2) - 1));
-    if(is_last_thread)
-    {
-        float divided = *((__global float *)alpha_addr) / (float)NUM_ELEMS;
-        printf("%g\n", divided);
-        *((__global float *)alpha_addr) = divided;
-    }*/
+#endif // defined(CALCULATE_ALPHA)
 }
 
 #endif // defined(SRC_WIDTH)
