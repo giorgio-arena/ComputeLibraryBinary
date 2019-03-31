@@ -50,9 +50,10 @@ public:
     void setup(TensorShape src_shape)
     {
         const TensorShape dst_shape = compute_binary_sign_shape(src_shape);
+        const TensorShape alpha_shape(src_shape.total_size_upper(3));
         
-        _target    = compute_target(src_shape, dst_shape);
-        _reference = compute_reference(src_shape);
+        std::tie(_target_out, _target_alpha)       = compute_target(src_shape, dst_shape, alpha_shape);
+        std::tie(_reference_out, _reference_alpha) = compute_reference(src_shape);
     }
 
 protected:
@@ -62,25 +63,28 @@ protected:
         library->fill_tensor_uniform(tensor, i);
     }
 
-    TensorType compute_target(const TensorShape &src_shape, const TensorShape &dst_shape)
+    std::pair<TensorType, TensorType> compute_target(const TensorShape &src_shape, const TensorShape &dst_shape, const TensorShape &alpha_shape)
     {
         // Create tensors
-        TensorType src = create_tensor<TensorType>(src_shape, DataType::F32);
-        TensorType dst = create_tensor<TensorType>(dst_shape, DataType::U8);
+        TensorType src   = create_tensor<TensorType>(src_shape, DataType::F32);
+        TensorType dst   = create_tensor<TensorType>(dst_shape, DataType::U8);
+        TensorType alpha = create_tensor<TensorType>(alpha_shape, DataType::F32);
 
         // Create and configure function
         FunctionType bin_sign;
-
-        bin_sign.configure(&src, &dst);
+        bin_sign.configure(&src, &dst, &alpha);
 
         ARM_COMPUTE_EXPECT(src.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(dst.info()->is_resizable(), framework::LogLevel::ERRORS);
+        ARM_COMPUTE_EXPECT(alpha.info()->is_resizable(), framework::LogLevel::ERRORS);
 
         // Allocate tensors
         src.allocator()->allocate();
         dst.allocator()->allocate();
+        alpha.allocator()->allocate();
         ARM_COMPUTE_EXPECT(!src.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(!dst.info()->is_resizable(), framework::LogLevel::ERRORS);
+        ARM_COMPUTE_EXPECT(!alpha.info()->is_resizable(), framework::LogLevel::ERRORS);
 
         // Fill src tensor
         fill(AccessorType(src), 0);
@@ -88,10 +92,10 @@ protected:
         // Compute function
         bin_sign.run();
 
-        return dst;
+        return std::make_pair(std::move(dst), std::move(alpha));
     }
 
-    SimpleTensor<uint8_t> compute_reference(const TensorShape &shape)
+    std::pair<SimpleTensor<uint8_t>, SimpleTensor<float>> compute_reference(const TensorShape &shape)
     {
         // Create reference
         SimpleTensor<float> src{ shape, DataType::F32 };
@@ -102,8 +106,10 @@ protected:
         return reference::binary_sign(src);
     }
 
-    TensorType            _target{};
-    SimpleTensor<uint8_t> _reference{};
+    TensorType            _target_out{};
+    TensorType            _target_alpha{};
+    SimpleTensor<uint8_t> _reference_out{};
+    SimpleTensor<float>   _reference_alpha{};
 };
 } // namespace validation
 } // namespace test

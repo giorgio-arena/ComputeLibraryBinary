@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#include "BitwiseAnd.h"
+#include "BinarySign.h"
 
 #include "arm_compute/core/utils/misc/ShapeCalculator.h"
 
@@ -35,29 +35,43 @@ namespace reference
 {
 using namespace arm_compute::misc::shape_calculator;
 
-SimpleTensor<uint8_t> binary_sign(const SimpleTensor<float> &src)
+std::pair<SimpleTensor<uint8_t>, SimpleTensor<float>> binary_sign(const SimpleTensor<float> &src)
 {
     SimpleTensor<uint8_t> dst(compute_binary_sign_shape(src.shape()), DataType::U8);
+    SimpleTensor<float>   alpha(TensorShape(src.shape().total_size_upper(3)), DataType::F32);
     
-    const size_t src_width = src.shape()[0];
-    for(size_t dim = 0, dst_pos = 0; dim < src.shape().total_size_upper(1); ++dim)
+    const size_t num_batches    = src.shape().total_size_upper(3);
+    const size_t block_sz       = src.shape().total_size_lower(3);
+    const size_t rows_per_block = src.shape().y() * src.shape().z();
+    const size_t src_width      = src.shape().x();
+    
+    size_t dst_idx = 0;    
+    for(size_t batch = 0; batch < num_batches; ++batch)
     {
-        for(size_t i = 0; i < src_width; i += 8, ++dst_pos)
+        for(size_t row = 0; row < rows_per_block; ++row)
         {
-            size_t to_get = i + std::min((src_width - i), 8UL);
-
-            uint8_t out_val = 0;
-            for(size_t j = i, k = 0; j < to_get; ++j, ++k)
+            for(size_t col = 0; col < src_width; col += 8)
             {
-                uint8_t val = (src[(dim * src_width) + j] > 0);                
-                out_val |= (val << (7 - k));
+                const size_t num_elems = std::min(src_width - col, 8UL); // 8 or up to padding
+                
+                uint8_t out_val = 0;
+                for(size_t i = 0; i < num_elems; ++i)
+                {
+                    float src_val = src[batch * block_sz + row * src_width + col + i];
+                    alpha[batch] += std::abs(src_val);
+                    
+                    uint8_t is_positive = (src_val > 0); // 1 or 0 in byte-form
+                    out_val |= (is_positive << (7 - i)); // Store in bit-form
+                }
+
+                dst[dst_idx++] = out_val;
             }
-            
-            dst[dst_pos] = out_val;
         }
+        
+        alpha[batch] /= block_sz;
     }
 
-    return dst;
+    return std::tie(dst, alpha);
 }
 } // namespace reference
 } // namespace validation

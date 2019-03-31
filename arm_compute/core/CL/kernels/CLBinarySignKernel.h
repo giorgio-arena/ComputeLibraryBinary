@@ -34,7 +34,8 @@ class ICLTensor;
  *
  *   Each value of the input tensor gets stored as a 0 bit in the destination tensor
  *   if it is 0.f or a negative value, it gets stored as a 1 bit otherwise.
- *   Every 8 input values will be stored in one single value of the output (8 bits per uint8_t value)
+ *   Every 8 input values will be stored in one single value of the output (8 bits per uint8_t value).
+ *   This kernel also calculates the alpha tensor containing the mean over absolute values of each 3D input block.
  */
 class CLBinarySignKernel : public ICLKernel
 {
@@ -54,19 +55,23 @@ public:
     
     /** Set the inputs and output images
      *
-     * @param[in]  input Source tensor. Data types supported: F32.
+     * @param[in]  input  Source tensor. Data types supported: F32.
      * @param[out] output Destination tensor. Data types supported: U8.
+     * @param[out] alpha  Alpha tensor. It contains the mean over absolute values of each 3D input block.
+     *                    Data types supported: F32.
      */
-    void configure(const ICLTensor *input, ICLTensor *output);
+    void configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha);
     
     /** Static function to check if given info will lead to a valid configuration of @ref CLBinarySignKernel
      *
-     * @param[in]  input Source tensor. Data types supported: F32.
-     * @param[out] output Destination tensor. Data types supported: U8.
+     * @param[in] input  Source tensor. Data types supported: F32.
+     * @param[in] output Destination tensor. Data types supported: U8.
+     * @param[in] alpha  Alpha tensor. It contains the mean over absolute values of each 3D input block.
+     *                    Data types supported: F32.
      *
      * @return a status
      */
-    static Status validate(const ITensorInfo *input, const ITensorInfo *output);
+    static Status validate(const ITensorInfo *input, const ITensorInfo *output, const ITensorInfo *alpha);
 
     // Inherited methods overridden:
     void run(const Window &window, cl::CommandQueue &queue) override;
@@ -74,6 +79,7 @@ public:
 private:
     const ICLTensor *_input;  /**< Source tensor */
     ICLTensor       *_output; /**< Destination tensor */
+    ICLTensor       *_alpha;  /**< Alpha tensor */
 };
 } // namespace arm_compute
 #endif /* __ARM_COMPUTE_CLBINARYSIGNKERNEL_H__ */

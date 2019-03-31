@@ -25,28 +25,60 @@
 
 #if defined(SRC_WIDTH)
 
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+
+typedef union
+{
+    float f;
+    unsigned int i;
+} union_type;
+
+// OpenCL doesn't provide atomic_add for floating point types
+inline void atomic_fadd(__global float *addr, const float sum)
+{
+    union_type old, new;
+    do
+    {
+        old.f = *addr;
+        new.f = old.f + sum;
+    } while(atom_cmpxchg((__global unsigned int *)addr, old.i, new.i) != old.i);
+}
+
 /** This function computes the bitwise AND of two input images.
  *
- * @param[in]  src_ptr                           Pointer to the source image. Supported data types: F32
- * @param[in]  src_stride_x                      Stride of the source image in X dimension (in bytes)
- * @param[in]  src_step_x                        src_stride_x * number of elements along X processed per workitem(in bytes)
- * @param[in]  src_stride_y                      Stride of the source image in Y dimension (in bytes)
- * @param[in]  src_step_y                        src_stride_y * number of elements along Y processed per workitem(in bytes)
- * @param[in]  src_offset_first_element_in_bytes The offset of the first element in the source image
- * @param[out] dst_ptr                           Pointer to the destination image. Supported data types: U8
- * @param[in]  dst_stride_x                      Stride of the destination image in X dimension (in bytes)
- * @param[in]  dst_step_x                        dst_stride_x * number of elements along X processed per workitem(in bytes)
- * @param[in]  dst_stride_y                      Stride of the destination image in Y dimension (in bytes)
- * @param[in]  dst_step_y                        dst_stride_y * number of elements along Y processed per workitem(in bytes)
- * @param[in]  dst_offset_first_element_in_bytes The offset of the first element in the destination image
+ * @param[in]  src_ptr                             Pointer to the source image. Supported data types: F32
+ * @param[in]  src_stride_x                        Stride of the source image in X dimension (in bytes)
+ * @param[in]  src_step_x                          src_stride_x * number of elements along X processed per workitem(in bytes)
+ * @param[in]  src_stride_y                        Stride of the source image in Y dimension (in bytes)
+ * @param[in]  src_step_y                          src_stride_y * number of elements along Y processed per workitem(in bytes)
+ * @param[in]  src_stride_z                        Stride of the source image in Z dimension (in bytes)
+ * @param[in]  src_step_z                          src_stride_z * number of elements along Z processed per workitem(in bytes)
+ * @param[in]  src_offset_first_element_in_bytes   The offset of the first element in the source image
+ * @param[out] dst_ptr                             Pointer to the destination image. Supported data types: U8
+ * @param[in]  dst_stride_x                        Stride of the destination image in X dimension (in bytes)
+ * @param[in]  dst_step_x                          dst_stride_x * number of elements along X processed per workitem(in bytes)
+ * @param[in]  dst_stride_y                        Stride of the destination image in Y dimension (in bytes)
+ * @param[in]  dst_step_y                          dst_stride_y * number of elements along Y processed per workitem(in bytes)
+ * @param[in]  dst_stride_z                        Stride of the destination image in Z dimension (in bytes)
+ * @param[in]  dst_step_z                          dst_stride_z * number of elements along Z processed per workitem(in bytes)
+ * @param[in]  dst_offset_first_element_in_bytes   The offset of the first element in the destination image
+ * @param[out] alpha_ptr                           Pointer to the alpha tensor. Supported data types: F32
+ * @param[in]  alpha_stride_x                      Stride of the alpha tensor in X dimension (in bytes)
+ * @param[in]  alpha_step_x                        alpha_stride_x * number of elements along X processed per workitem(in bytes)
+ * @param[in]  alpha_offset_first_element_in_bytes The offset of the first element in the alpha tensor
+ * @param[in]  batch                               Position of the 3D block
+ * 
  */
 __kernel void binary_sign(
-    IMAGE_DECLARATION(src),
-    IMAGE_DECLARATION(dst))
+    TENSOR3D_DECLARATION(src),
+    TENSOR3D_DECLARATION(dst),
+    VECTOR_DECLARATION(alpha),
+    uint batch)
 {
     // Calculate input/output addresses
-    Image src = CONVERT_TO_IMAGE_STRUCT(src);
-    __global uchar *dst_addr = dst_ptr + dst_offset_first_element_in_bytes + get_global_id(0) * dst_stride_x + get_global_id(1) * dst_step_y;
+    Tensor3D src = CONVERT_TO_TENSOR3D_STRUCT(src);
+    __global uchar *dst_addr = dst_ptr + dst_offset_first_element_in_bytes + get_global_id(0) * dst_stride_x + get_global_id(1) * dst_step_y + get_global_id(2) * dst_step_z;
+    __global uchar *alpha_addr = alpha_ptr + alpha_offset_first_element_in_bytes + batch * alpha_stride_x;
     
     // Load values
     float8 src_vals = vload8(0, (__global float *)src.ptr);
@@ -71,6 +103,22 @@ __kernel void binary_sign(
     
     // Write to output tensor
     *dst_addr = dst_val;
+    
+    // Write to alpha tensor
+    float8 abs_vals = fabs(src_vals);
+    float sum = abs_vals.s0 + abs_vals.s1 + abs_vals.s2 + abs_vals.s3 +
+                abs_vals.s4 + abs_vals.s5 + abs_vals.s6 + abs_vals.s7;
+    
+    atomic_fadd((__global float *)alpha_addr, sum);
+    
+    // If it is the last thread of the 3D block, divide the corresponding alpha value by its total amount of values
+    /*bool is_last_thread = (get_global_id(0) == (get_global_size(0) - 1) && get_global_id(1) == (get_global_size(1) - 1) && get_global_id(2) == (get_global_size(2) - 1));
+    if(is_last_thread)
+    {
+        float divided = *((__global float *)alpha_addr) / (float)NUM_ELEMS;
+        printf("%g\n", divided);
+        *((__global float *)alpha_addr) = divided;
+    }*/
 }
 
 #endif // defined(SRC_WIDTH)
