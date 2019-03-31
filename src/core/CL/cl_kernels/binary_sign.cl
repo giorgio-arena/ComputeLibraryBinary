@@ -25,7 +25,8 @@
 
 #if defined(SRC_WIDTH)
 
-#if defined(CALCULATE_ALPHA)
+#if defined(CALCULATE_ALPHA) || defined(CALCULATE_BETA)
+
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 
 typedef union
@@ -44,7 +45,8 @@ inline void atomic_fadd(__global float *addr, const float sum)
         new.f = old.f + sum;
     } while(atom_cmpxchg((__global unsigned int *)addr, old.i, new.i) != old.i);
 }
-#endif // defined(CALCULATE_ALPHA)
+
+#endif // defined(CALCULATE_ALPHA) || defined(CALCULATE_BETA)
 
 /** This function computes the bitwise AND of two input images.
  *
@@ -64,11 +66,17 @@ inline void atomic_fadd(__global float *addr, const float sum)
  * @param[in]  dst_stride_z                        Stride of the destination image in Z dimension (in bytes)
  * @param[in]  dst_step_z                          dst_stride_z * number of elements along Z processed per workitem(in bytes)
  * @param[in]  dst_offset_first_element_in_bytes   The offset of the first element in the destination image
- * @param[out] alpha_ptr                           Pointer to the alpha tensor. Supported data types: F32
- * @param[in]  alpha_stride_x                      Stride of the alpha tensor in X dimension (in bytes)
- * @param[in]  alpha_step_x                        alpha_stride_x * number of elements along X processed per workitem(in bytes)
- * @param[in]  alpha_offset_first_element_in_bytes The offset of the first element in the alpha tensor
- * @param[in]  batch                               Position of the 3D block
+ * @param[out] alpha_ptr                           (Optional) Pointer to the alpha tensor. Supported data types: F32
+ * @param[in]  alpha_stride_x                      (Optional) Stride of the alpha tensor in X dimension (in bytes)
+ * @param[in]  alpha_step_x                        (Optional) alpha_stride_x * number of elements along X processed per workitem(in bytes)
+ * @param[in]  alpha_offset_first_element_in_bytes (Optional) The offset of the first element in the alpha tensor
+ * @param[in]  batch                               (Optional) Position of the 3D block
+ * @param[out] beta_ptr                            (Optional) Pointer to the beta tensor. Supported data types: F32
+ * @param[in]  beta_stride_x                       (Optional) Stride of the beta tensor in X dimension (in bytes)
+ * @param[in]  beta_step_x                         (Optional) beta_stride_x * number of elements along X processed per workitem(in bytes)
+ * @param[in]  beta_stride_y                       (Optional) Stride of the beta tensor in Y dimension (in bytes)
+ * @param[in]  beta_step_y                         (Optional) beta_stride_y * number of elements along Y processed per workitem(in bytes)
+ * @param[in]  beta_offset_first_element_in_bytes  (Optional) The offset of the first element in the beta tensor
  * 
  */
 __kernel void binary_sign(
@@ -79,6 +87,10 @@ __kernel void binary_sign(
     VECTOR_DECLARATION(alpha),
     uint batch
 #endif // defined(CALCULATE_ALPHA)
+#if defined(CALCULATE_BETA)
+    ,
+    IMAGE_DECLARATION(beta)
+#endif // defined(CALCULATE_ALPHA)
 )
 {
     // Calculate input/output addresses
@@ -87,6 +99,9 @@ __kernel void binary_sign(
 #if defined(CALCULATE_ALPHA)
     __global uchar *alpha_addr = alpha_ptr + alpha_offset_first_element_in_bytes + batch * alpha_stride_x;
 #endif // defined(CALCULATE_ALPHA)
+#if defined(CALCULATE_BETA)
+    __global uchar *beta_addr = beta_ptr + beta_offset_first_element_in_bytes + get_global_id(0) * beta_step_x + get_global_id(1) * beta_step_y;
+#endif // defined(CALCULATE_BETA)
     
     // Load values
     float8 src_vals = vload8(0, (__global float *)src.ptr);
@@ -109,9 +124,11 @@ __kernel void binary_sign(
     dst_val |= (signs.s6 << 1);
     dst_val |= (signs.s7);
     
-#if defined(CALCULATE_ALPHA)
+#if defined(CALCULATE_ALPHA) || defined(CALCULATE_BETA)
     // Calculate sum of absolute over all input values
     float8 abs_vals = fabs(src_vals);
+#endif // defined(CALCULATE_ALPHA) || defined(CALCULATE_BETA)
+#if defined(CALCULATE_ALPHA)
     float sum = abs_vals.s0 + abs_vals.s1 + abs_vals.s2 + abs_vals.s3 +
                 abs_vals.s4 + abs_vals.s5 + abs_vals.s6 + abs_vals.s7;
 #endif // defined(CALCULATE_ALPHA)
@@ -122,6 +139,18 @@ __kernel void binary_sign(
 #if defined(CALCULATE_ALPHA)
     // Write to alpha tensor  
     atomic_fadd((__global float *)alpha_addr, sum);
+#endif // defined(CALCULATE_ALPHA)
+    
+#if defined(CALCULATE_BETA)
+    // Write to beta tensor    
+    atomic_fadd((__global float *)beta_addr + 0, abs_vals.s0);
+    atomic_fadd((__global float *)beta_addr + 1, abs_vals.s1);
+    atomic_fadd((__global float *)beta_addr + 2, abs_vals.s2);
+    atomic_fadd((__global float *)beta_addr + 3, abs_vals.s3);
+    atomic_fadd((__global float *)beta_addr + 4, abs_vals.s4);
+    atomic_fadd((__global float *)beta_addr + 5, abs_vals.s5);
+    atomic_fadd((__global float *)beta_addr + 6, abs_vals.s6);
+    atomic_fadd((__global float *)beta_addr + 7, abs_vals.s7);
 #endif // defined(CALCULATE_ALPHA)
 }
 

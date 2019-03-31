@@ -35,43 +35,68 @@ namespace reference
 {
 using namespace arm_compute::misc::shape_calculator;
 
-std::pair<SimpleTensor<uint8_t>, SimpleTensor<float>> binary_sign(const SimpleTensor<float> &src)
+std::tuple<SimpleTensor<uint8_t>, SimpleTensor<float>, SimpleTensor<float>> binary_sign(const SimpleTensor<float> &src)
 {
+    TensorShape beta_shape { src.shape() };
+    beta_shape.set(2, 1);
+    
     SimpleTensor<uint8_t> dst(compute_binary_sign_shape(src.shape()), DataType::U8);
     SimpleTensor<float>   alpha(TensorShape(src.shape().total_size_upper(3)), DataType::F32);
+    SimpleTensor<float>   beta(beta_shape, DataType::F32);
     
-    const size_t num_batches    = src.shape().total_size_upper(3);
-    const size_t block_sz       = src.shape().total_size_lower(3);
-    const size_t rows_per_block = src.shape().y() * src.shape().z();
-    const size_t src_width      = src.shape().x();
+    // Initialize alpha and beta to zero
+    for(int i = 0; i < alpha.num_elements(); ++i)
+    {
+        alpha[i] = 0;
+    }
+    for(int i = 0; i < beta.num_elements(); ++i)
+    {
+        beta[i] = 0;
+    }
+    
+    const size_t num_batches = src.shape().total_size_upper(3);
+    const size_t block_sz    = src.shape().total_size_lower(3);
+    const size_t plane_sz    = src.shape().total_size_lower(2);
+    const size_t row_sz      = src.shape().x();
+    
+    const size_t beta_plane_sz = beta.shape().total_size_lower(2);
     
     size_t dst_idx = 0;    
     for(size_t batch = 0; batch < num_batches; ++batch)
     {
-        for(size_t row = 0; row < rows_per_block; ++row)
+        for(size_t plane = 0; plane < src.shape().z(); ++plane)
         {
-            for(size_t col = 0; col < src_width; col += 8)
+            for(size_t row = 0; row < src.shape().y(); ++row)
             {
-                const size_t num_elems = std::min(src_width - col, 8UL); // 8 or up to padding
-                
-                uint8_t out_val = 0;
-                for(size_t i = 0; i < num_elems; ++i)
+                for(size_t col = 0; col < row_sz; col += 8)
                 {
-                    float src_val = src[batch * block_sz + row * src_width + col + i];
-                    alpha[batch] += std::abs(src_val);
+                    const size_t num_elems = std::min(row_sz - col, 8UL); // 8 or up to padding
+                    size_t plane_pos = row * row_sz + col;
                     
-                    uint8_t is_positive = (src_val > 0); // 1 or 0 in byte-form
-                    out_val |= (is_positive << (7 - i)); // Store in bit-form
-                }
+                    uint8_t out_val  = 0;
+                    for(size_t i = 0; i < num_elems; ++i, ++plane_pos)
+                    {
+                        float src_val   = src[batch * block_sz + plane_pos + plane * plane_sz];
+                        alpha[batch]   += std::abs(src_val);
+                        beta[batch * beta_plane_sz + plane_pos] += std::abs(src_val);
 
-                dst[dst_idx++] = out_val;
+                        uint8_t is_positive = (src_val > 0); // 1 or 0 in byte-form
+                        out_val |= (is_positive << (7 - i)); // Store in bit-form
+                    }
+
+                    dst[dst_idx++] = out_val;
+                }
             }
         }
         
         alpha[batch] /= block_sz;
+        for(size_t i = 0; i < plane_sz; ++i)
+        {
+            beta[batch * plane_sz + i] /= src.shape().z();
+        }
     }
 
-    return std::tie(dst, alpha);
+    return std::tie(dst, alpha, beta);
 }
 } // namespace reference
 } // namespace validation

@@ -56,6 +56,8 @@ FIXTURE_DATA_TEST_CASE(RunSmall, CLBinarySignFixture, framework::DatasetMode::AL
     validate(CLAccessor(_target_out), _reference_out);
     // Validate alpha
     validate(CLAccessor(_target_alpha), _reference_alpha, tolerance_f32);
+    // Validate beta
+    validate(CLAccessor(_target_beta), _reference_beta, tolerance_f32);
 }
 
 FIXTURE_DATA_TEST_CASE(RunLarge, CLBinarySignFixture, framework::DatasetMode::NIGHTLY, datasets::LargeShapes())
@@ -64,6 +66,8 @@ FIXTURE_DATA_TEST_CASE(RunLarge, CLBinarySignFixture, framework::DatasetMode::NI
     validate(CLAccessor(_target_out), _reference_out);
     // Validate alpha
     validate(CLAccessor(_target_alpha), _reference_alpha, tolerance_f32);
+    // Validate beta
+    validate(CLAccessor(_target_beta), _reference_beta, tolerance_f32);
 }
 
 TEST_SUITE_END()

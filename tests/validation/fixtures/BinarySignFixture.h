@@ -51,9 +51,11 @@ public:
     {
         const TensorShape dst_shape = compute_binary_sign_shape(src_shape);
         const TensorShape alpha_shape(src_shape.total_size_upper(3));
+        TensorShape beta_shape{ src_shape };
+        beta_shape.set(2, 1);
         
-        std::tie(_target_out, _target_alpha)       = compute_target(src_shape, dst_shape, alpha_shape);
-        std::tie(_reference_out, _reference_alpha) = compute_reference(src_shape);
+        std::tie(_target_out, _target_alpha, _target_beta)          = compute_target(src_shape, dst_shape, alpha_shape, beta_shape);
+        std::tie(_reference_out, _reference_alpha, _reference_beta) = compute_reference(src_shape);
     }
 
 protected:
@@ -63,53 +65,59 @@ protected:
         library->fill_tensor_uniform(tensor, i);
     }
 
-    std::pair<TensorType, TensorType> compute_target(const TensorShape &src_shape, const TensorShape &dst_shape, const TensorShape &alpha_shape)
+    std::tuple<TensorType, TensorType, TensorType> compute_target(const TensorShape &src_shape, const TensorShape &dst_shape, const TensorShape &alpha_shape, const TensorShape &beta_shape)
     {
         // Create tensors
         TensorType src   = create_tensor<TensorType>(src_shape, DataType::F32);
         TensorType dst   = create_tensor<TensorType>(dst_shape, DataType::U8);
         TensorType alpha = create_tensor<TensorType>(alpha_shape, DataType::F32);
+        TensorType beta  = create_tensor<TensorType>(beta_shape, DataType::F32);
 
         // Create and configure function
         FunctionType bin_sign;
-        bin_sign.configure(&src, &dst, &alpha);
+        bin_sign.configure(&src, &dst, &alpha, &beta);
 
         ARM_COMPUTE_EXPECT(src.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(dst.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(alpha.info()->is_resizable(), framework::LogLevel::ERRORS);
+        ARM_COMPUTE_EXPECT(beta.info()->is_resizable(), framework::LogLevel::ERRORS);
 
         // Allocate tensors
         src.allocator()->allocate();
         dst.allocator()->allocate();
         alpha.allocator()->allocate();
+        beta.allocator()->allocate();
         ARM_COMPUTE_EXPECT(!src.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(!dst.info()->is_resizable(), framework::LogLevel::ERRORS);
         ARM_COMPUTE_EXPECT(!alpha.info()->is_resizable(), framework::LogLevel::ERRORS);
+        ARM_COMPUTE_EXPECT(!beta.info()->is_resizable(), framework::LogLevel::ERRORS);
 
         // Fill src tensor
         fill(AccessorType(src), 0);
 
         // Compute function
         bin_sign.run();
-
-        return std::make_pair(std::move(dst), std::move(alpha));
+        
+        return std::make_tuple(std::move(dst), std::move(alpha), std::move(beta));
     }
 
-    std::pair<SimpleTensor<uint8_t>, SimpleTensor<float>> compute_reference(const TensorShape &shape)
+    std::tuple<SimpleTensor<uint8_t>, SimpleTensor<float>, SimpleTensor<float>> compute_reference(const TensorShape &shape)
     {
         // Create reference
         SimpleTensor<float> src{ shape, DataType::F32 };
 
         // Fill reference
         fill(src, 0);
-
+        
         return reference::binary_sign(src);
     }
 
     TensorType            _target_out{};
     TensorType            _target_alpha{};
+    TensorType            _target_beta{};
     SimpleTensor<uint8_t> _reference_out{};
     SimpleTensor<float>   _reference_alpha{};
+    SimpleTensor<float>   _reference_beta{};
 };
 } // namespace validation
 } // namespace test

@@ -34,7 +34,7 @@ namespace validation
 {
 namespace reference
 {
-std::pair<SimpleTensor<uint8_t>, SimpleTensor<float>> binary_sign(const SimpleTensor<float> &src);
+std::tuple<SimpleTensor<uint8_t>, SimpleTensor<float>, SimpleTensor<float>> binary_sign(const SimpleTensor<float> &src);
 } // namespace reference
 } // namespace validation
 } // namespace test
