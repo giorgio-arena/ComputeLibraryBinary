@@ -48,24 +48,24 @@ inline void atomic_fadd(__global float *addr, const float sum)
 
 #endif // defined(CALCULATE_ALPHA) || defined(CALCULATE_BETA)
 
-/** This function computes the bitwise AND of two input images.
+/** This function computes the binary sign operation.
  *
- * @param[in]  src_ptr                             Pointer to the source image. Supported data types: F32
- * @param[in]  src_stride_x                        Stride of the source image in X dimension (in bytes)
+ * @param[in]  src_ptr                             Pointer to the source tensor. Supported data types: F32
+ * @param[in]  src_stride_x                        Stride of the source tensor in X dimension (in bytes)
  * @param[in]  src_step_x                          src_stride_x * number of elements along X processed per workitem(in bytes)
- * @param[in]  src_stride_y                        Stride of the source image in Y dimension (in bytes)
+ * @param[in]  src_stride_y                        Stride of the source tensor in Y dimension (in bytes)
  * @param[in]  src_step_y                          src_stride_y * number of elements along Y processed per workitem(in bytes)
- * @param[in]  src_stride_z                        Stride of the source image in Z dimension (in bytes)
+ * @param[in]  src_stride_z                        Stride of the source tensor in Z dimension (in bytes)
  * @param[in]  src_step_z                          src_stride_z * number of elements along Z processed per workitem(in bytes)
- * @param[in]  src_offset_first_element_in_bytes   The offset of the first element in the source image
- * @param[out] dst_ptr                             Pointer to the destination image. Supported data types: U8
- * @param[in]  dst_stride_x                        Stride of the destination image in X dimension (in bytes)
+ * @param[in]  src_offset_first_element_in_bytes   The offset of the first element in the source tensor
+ * @param[out] dst_ptr                             Pointer to the destination tensor. Supported data types: U8
+ * @param[in]  dst_stride_x                        Stride of the destination tensor in X dimension (in bytes)
  * @param[in]  dst_step_x                          dst_stride_x * number of elements along X processed per workitem(in bytes)
- * @param[in]  dst_stride_y                        Stride of the destination image in Y dimension (in bytes)
+ * @param[in]  dst_stride_y                        Stride of the destination tensor in Y dimension (in bytes)
  * @param[in]  dst_step_y                          dst_stride_y * number of elements along Y processed per workitem(in bytes)
- * @param[in]  dst_stride_z                        Stride of the destination image in Z dimension (in bytes)
+ * @param[in]  dst_stride_z                        Stride of the destination tensor in Z dimension (in bytes)
  * @param[in]  dst_step_z                          dst_stride_z * number of elements along Z processed per workitem(in bytes)
- * @param[in]  dst_offset_first_element_in_bytes   The offset of the first element in the destination image
+ * @param[in]  dst_offset_first_element_in_bytes   The offset of the first element in the destination tensor
  * @param[out] alpha_ptr                           (Optional) Pointer to the alpha tensor. Supported data types: F32
  * @param[in]  alpha_stride_x                      (Optional) Stride of the alpha tensor in X dimension (in bytes)
  * @param[in]  alpha_step_x                        (Optional) alpha_stride_x * number of elements along X processed per workitem(in bytes)

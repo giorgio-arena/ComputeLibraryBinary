@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018 ARM Limited.
+ * Copyright (c) 2019 ARM Limited.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -24,11 +24,12 @@
 #ifndef __ARM_COMPUTE_CLBINARYCONVOLUTIONLAYER_H__
 #define __ARM_COMPUTE_CLBINARYCONVOLUTIONLAYER_H__
 
+#include "arm_compute/core/CL/kernels/CLBinarySignKernel.h"
+#include "arm_compute/core/CL/kernels/CLBinaryConvolutionKernel.h"
 #include "arm_compute/core/Types.h"
+#include "arm_compute/runtime/CL/functions/CLConvolutionLayer.h"
 #include "arm_compute/runtime/IFunction.h"
 #include "arm_compute/runtime/IMemoryManager.h"
-
-#include "arm_compute/core/CL/ICLKernel.h" // TODO delete
 
 #include <memory>
 
@@ -55,10 +56,10 @@ public:
      *
      * @param[in]  input            Source tensor. 3 lower dimensions represent a single input [width, height, IFM],
      *                              while every optional dimension from 4 and above represent a batch of inputs.
-     *                              Data types supported: QASYMM8/F16/F32.
+     *                              Data types supported: F32.
      * @param[in]  weights          Weights tensor. Weights are 4D tensor with dimensions [kernel_x, kernel_y, IFM, OFM]. Data type supported: Same as @p input.
      * @param[in]  biases           Biases tensor. Shared biases supported. Biases are 1D tensor with dimensions [OFM].
-     *                              Data type supported: Should match @p input data type, except for input of QASYMM8 type where biases should be of S32 type.
+     *                              Data type supported: Should match @p input data type
      * @param[out] output           Destination tensor. 3 lower dimensions represent a single output [width, height, OFM], while the rest represent batch of outputs.
      *                              Data types supported: Same as @p input.
      * @param[in]  conv_info        Contains padding and stride information described in @ref PadStrideInfo.
@@ -69,7 +70,7 @@ public:
      *
      * @param[in] input            Source tensor. 3 lower dimensions represent a single input [width, height, IFM],
      *                             while every optional dimension from 4 and above represent a batch of inputs.
-     *                             Data types supported: QASYMM8/F16/F32.
+     *                             Data types supported: F32.
      * @param[in] weights          Weights tensor. Weights are 4D tensor with dimensions [kernel_x, kernel_y, IFM, OFM]. Data type supported:Same as @p input.
      * @param[in] biases           Biases tensor. Shared biases supported. Biases are 1D tensor with dimensions [OFM]. Data type supported:Same as @p input.
      * @param[in] output           Destination tensor. 3 lower dimensions represent a single output [width, height, OFM], while the rest represent batch of outputs.
@@ -85,6 +86,17 @@ public:
     void prepare() override;
 
 private:
+    CLBinarySignKernel              _binarize_input;
+    CLBinarySignKernel              _binarize_weights;
+    CLBinaryConvolutionKernel       _binary_convolution;
+    CLConvolutionLayer              _normalize_beta;
+    CLTensor                        _binarized_input;
+    CLTensor                        _binarized_weights;
+    CLTensor                        _alpha;
+    CLTensor                        _beta;
+    CLTensor                        _k;
+    CLTensor                        _normalized_beta;
+    bool                            _is_prepared;
     std::shared_ptr<IMemoryManager> _memory_manager;
 };
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018 ARM Limited.
+ * Copyright (c) 2019 ARM Limited.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -23,7 +23,7 @@
  */
 #include "arm_compute/runtime/CL/functions/CLBinaryConvolutionLayer.h"
 
-#include "arm_compute/core/PixelValue.h"
+#include "arm_compute/core/CL/ICLTensor.h"
 #include "arm_compute/core/Utils.h"
 #include "arm_compute/core/Validate.h"
 #include "arm_compute/core/utils/misc/ShapeCalculator.h"
@@ -38,16 +38,29 @@ using namespace arm_compute;
 using namespace arm_compute::misc::shape_calculator;
 
 CLBinaryConvolutionLayer::CLBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager)
-    : _memory_manager(std::move(memory_manager))
+    : _binarize_input(), _binarize_weights(), _binary_convolution(), _normalize_beta(), _binarized_input(), _binarized_weights(), _alpha(), _beta(), _k(),
+      _normalized_beta(), _is_prepared(false), _memory_manager(std::move(memory_manager))
 {
 }
 
 void CLBinaryConvolutionLayer::configure(ICLTensor *input, const ICLTensor *weights, const ICLTensor *biases, ICLTensor *output, const PadStrideInfo &conv_info)
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, weights, output);
-    //ARM_COMPUTE_ERROR_THROW_ON(CLBinaryConvolutionLayer::validate(input->info(), weights->info(), ((biases != nullptr) ? biases->info() : nullptr), output->info(), conv_info));
-
-    // TODO
+    ARM_COMPUTE_ERROR_THROW_ON(CLBinaryConvolutionLayer::validate(input->info(), weights->info(), ((biases != nullptr) ? biases->info() : nullptr), output->info(), conv_info));
+    
+    TensorShape k_shape(weights->info()->dimension(0), weights->info()->dimension(1));
+    auto_init_if_empty(*_k.info(), output->info()->clone()->set_tensor_shape(k_shape));
+    
+    _binarize_weights.configure(weights, &_binarized_weights, &_alpha);
+    _binarize_input.configure(input, &_binarized_input, nullptr, &_beta);
+    _normalize_beta.configure(&_beta, &_k, nullptr, &_normalized_beta, conv_info);
+    
+    _binarized_weights.allocator()->allocate();
+    _binarized_input.allocator()->allocate();
+    _alpha.allocator()->allocate();
+    _beta.allocator()->allocate();
+    _k.allocator()->allocate();
+    _normalized_beta.allocator()->allocate();
 }
 
 Status CLBinaryConvolutionLayer::validate(const ITensorInfo *input, const ITensorInfo *weights, const ITensorInfo *biases, const ITensorInfo *output, const PadStrideInfo &conv_info)
@@ -63,10 +76,31 @@ void CLBinaryConvolutionLayer::run()
 {
     prepare();
     
-    // TODO
+    CLScheduler::get().enqueue(_binarize_input);
+    
+    _normalize_beta.run();
 }
 
 void CLBinaryConvolutionLayer::prepare()
 {
-    // TODO
+    if(!_is_prepared)
+    {
+        CLScheduler::get().enqueue(_binarize_weights);
+        
+        // Fill k
+        _k.map(CLScheduler::get().queue());
+        
+        const float norm_factor = 1.f / (_k.info()->dimension(0) * _k.info()->dimension(1));
+        for(size_t y = 0; y < _k.info()->dimension(1); ++y)
+        {
+            for(size_t x = 0; x < _k.info()->dimension(0); ++x)
+            {
+                *reinterpret_cast<float *>(_k.ptr_to_element(Coordinates(x, y))) = norm_factor;
+            }
+        }
+        
+        _k.unmap(CLScheduler::get().queue());
+        
+        _is_prepared = true;
+    }
 }

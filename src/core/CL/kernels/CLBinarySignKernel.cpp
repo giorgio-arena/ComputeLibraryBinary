@@ -41,11 +41,11 @@ Status validate_arguments(const ITensorInfo *input, const ITensorInfo *output, c
 {
     ARM_COMPUTE_RETURN_ERROR_ON_NULLPTR(input, output);
     ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(input, 1, DataType::F32);
-    ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(output, 1, DataType::U8);
 
     // Checks performed when output is configured
     if(output->total_size() != 0)
     {
+        ARM_COMPUTE_RETURN_ERROR_ON_DATA_TYPE_CHANNEL_NOT_IN(output, 1, DataType::U8);
         ARM_COMPUTE_RETURN_ERROR_ON_MISMATCHING_DIMENSIONS(output->tensor_shape(), compute_binary_sign_shape(input->tensor_shape()));
     }
     
@@ -73,7 +73,7 @@ std::pair<Status, Window> validate_and_configure_window(ITensorInfo *input, ITen
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, output);
     // Output auto inizialitation if not yet initialized
-    auto_init_if_empty(*output, input->clone()->set_tensor_shape(compute_binary_sign_shape(input->tensor_shape())));
+    auto_init_if_empty(*output, input->clone()->set_tensor_shape(compute_binary_sign_shape(input->tensor_shape())).set_data_type(DataType::U8));
     if(alpha != nullptr)
     {
         auto_init_if_empty(*alpha, input->clone()->set_tensor_shape(TensorShape(input->tensor_shape().total_size_upper(3))));
@@ -114,7 +114,8 @@ CLBinarySignKernel::CLBinarySignKernel()
 void CLBinarySignKernel::configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha, ICLTensor *beta)
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, output);
-    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(input->info(), output->info(), alpha ? alpha->info() : nullptr, beta ? beta->info() : nullptr));
+    ARM_COMPUTE_ERROR_THROW_ON(validate_arguments(input->info(), output->info(), (alpha != nullptr) ? alpha->info() : nullptr,
+                              (beta != nullptr) ? beta->info() : nullptr));
 
     _input  = input;
     _output = output;
