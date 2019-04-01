@@ -137,6 +137,9 @@ class SmallConvolutionLayerDataset final : public ConvolutionLayerDataset
 public:
     SmallConvolutionLayerDataset()
     {
+        add_config(TensorShape(7U, 7U, 3U, 2U), TensorShape(3U, 3U, 3U, 3U), TensorShape(3U), TensorShape(7U, 7U, 3U, 2U),
+                   PadStrideInfo(1U, 1U, 1U, 1U));
+        
         add_config(TensorShape(224U, 224U, 3U), TensorShape(3U, 3U, 3U, 32U), TensorShape(32U), TensorShape(112U, 112U, 32U),
                    PadStrideInfo(2, 2, /*left*/ 0, /*right*/ 1, /*top*/ 0, /*bottom*/ 1, DimensionRoundingType::FLOOR));
 
