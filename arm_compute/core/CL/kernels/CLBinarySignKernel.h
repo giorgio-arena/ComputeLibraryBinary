@@ -60,7 +60,7 @@ public:
      * @param[out] output Destination tensor. Data types supported: U8.
      * @param[out] alpha  (Optional) Alpha tensor. It contains the mean over absolute values of each 3D input block.
      *                    Data types supported: F32.
-     * @param[out] beta  (Optional) Beta tensor. It contains the normalized mean over absolute values over channels.
+     * @param[out] beta  (Optional) Beta tensor. It contains the mean over absolute values over channels.
      *                    Data types supported: F32.
      */
     void configure(const ICLTensor *input, ICLTensor *output, ICLTensor *alpha = nullptr, ICLTensor *beta = nullptr);
@@ -71,7 +71,7 @@ public:
      * @param[in] output Destination tensor. Data types supported: U8.
      * @param[in] alpha  (Optional) Alpha tensor. It contains the mean over absolute values of each 3D input block.
      *                    Data types supported: F32.
-     * @param[in] beta  (Optional) Beta tensor. It contains the normalized mean over absolute values over channels.
+     * @param[in] beta  (Optional) Beta tensor. It contains the mean over absolute values over channels.
      *                    Data types supported: F32.
      *
      * @return a status

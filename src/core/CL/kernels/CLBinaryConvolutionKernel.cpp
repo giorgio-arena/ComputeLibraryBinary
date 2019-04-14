@@ -56,11 +56,11 @@ std::pair<Status, Window> validate_and_configure_window(ITensorInfo *input, ITen
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, weights, output, alpha, beta);
 
-    constexpr unsigned int num_elems_read_per_iteration = 1;
-    constexpr unsigned int num_elems_written_per_iteration = num_elems_read_per_iteration * 8;
+    constexpr unsigned int num_elems_read_per_iteration    = 1;
+    const     unsigned int num_elems_written_per_iteration = num_elems_read_per_iteration * 8;
 
     // Configure window
-    Window win = calculate_max_window(*input, Steps(num_elems_read_per_iteration));
+    Window win = calculate_max_window(*output, Steps(num_elems_written_per_iteration));
     
     // Update window and padding
     AccessWindowHorizontal input_access(input, 0, num_elems_read_per_iteration);
@@ -94,11 +94,15 @@ void CLBinaryConvolutionKernel::configure(ICLTensor *input, ICLTensor *weights, 
     _output  = output;
     _alpha   = alpha;
     _beta    = beta;
-
+    
     // Create kernel
     CLBuildOptions build_opts;
-    build_opts.add_option_if(biases != nullptr, "-DHAS_BIASES");
-    _kernel = static_cast<cl::Kernel>(CLKernelLibrary::get().create_kernel("binary_sign", build_opts.options()));
+    build_opts.add_option("-DWEIGHTS_DEPTH=" + support::cpp11::to_string(_weights->info()->dimension(2)));
+    build_opts.add_option_if(biases != nullptr, "-DHAS_BIAS");
+    
+    std::stringstream kernel_name;
+    kernel_name << "binary_convolution_" << kernel_sz.width << "x" << kernel_sz.height;
+    _kernel = static_cast<cl::Kernel>(CLKernelLibrary::get().create_kernel(kernel_name.str(), build_opts.options()));
 
     // Configure kernel window
     auto win_config = validate_and_configure_window(input->info(), weights->info(), (biases != nullptr) ? biases->info() : nullptr,
@@ -123,19 +127,22 @@ void CLBinaryConvolutionKernel::run(const Window &window, cl::CommandQueue &queu
     ARM_COMPUTE_ERROR_ON_UNCONFIGURED_KERNEL(this);
     ARM_COMPUTE_ERROR_ON_INVALID_SUBWINDOW(ICLKernel::window(), window);
 
-    Window slice = window.first_slice_window_3D();
+    Window slice         = window.first_slice_window_3D();
+    Window slice_weights = slice;
+    slice_weights.set(3, Window::Dimension(0, 0, 0));
+    
     do
     {
         unsigned int idx = 0;
         add_3D_tensor_argument(idx, _input, slice);
-        add_4D_tensor_argument(idx, _weights, slice);
+        add_4D_tensor_argument(idx, _weights, slice_weights);
         if(_biases != nullptr)
         {
             add_1D_tensor_argument(idx, _biases, slice);
         }
         add_3D_tensor_argument(idx, _output, slice);
         add_1D_tensor_argument(idx, _alpha, slice);
-        add_2D_tensor_argument(idx, _beta, slice);        
+        add_2D_tensor_argument(idx, _beta, slice);
         enqueue(queue, *this, slice);
     }
     while(window.slide_window_slice_3D(slice));

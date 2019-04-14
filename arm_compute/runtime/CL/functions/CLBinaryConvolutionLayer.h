@@ -28,6 +28,7 @@
 #include "arm_compute/core/CL/kernels/CLBinaryConvolutionKernel.h"
 #include "arm_compute/core/Types.h"
 #include "arm_compute/runtime/CL/functions/CLConvolutionLayer.h"
+#include "arm_compute/runtime/CL/functions/CLPadLayer.h"
 #include "arm_compute/runtime/IFunction.h"
 #include "arm_compute/runtime/IMemoryManager.h"
 
@@ -86,10 +87,12 @@ public:
     void prepare() override;
 
 private:
+    CLPadLayer                      _pad_input;
     CLBinarySignKernel              _binarize_input;
     CLBinarySignKernel              _binarize_weights;
     CLBinaryConvolutionKernel       _binary_convolution;
     CLConvolutionLayer              _normalize_beta;
+    CLTensor                        _padded_input;
     CLTensor                        _binarized_input;
     CLTensor                        _binarized_weights;
     CLTensor                        _alpha;

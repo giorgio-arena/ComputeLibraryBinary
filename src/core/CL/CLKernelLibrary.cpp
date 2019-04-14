@@ -156,7 +156,7 @@ const std::map<std::string, std::string> CLKernelLibrary::_kernel_program_map =
     { "batch_to_space_static_nhwc", "batch_to_space.cl" },
     { "batchnormalization_layer_nchw", "batchnormalization_layer.cl" },
     { "batchnormalization_layer_nhwc", "batchnormalization_layer.cl" },
-    { "binary_convolution", "binary_convolution.cl" },
+    { "binary_convolution_3x3", "binary_convolution.cl" },
     { "binary_sign", "binary_sign.cl" },
     { "bitwise_or", "bitwise_op.cl" },
     { "bitwise_and", "bitwise_op.cl" },

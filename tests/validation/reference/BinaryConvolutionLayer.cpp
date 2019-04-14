@@ -24,6 +24,7 @@
 #include "BinaryConvolutionLayer.h"
 #include "BinarySign.h"
 #include "ConvolutionLayer.h"
+#include "PadLayer.h"
 
 #include "arm_compute/core/utils/misc/ShapeCalculator.h"
 
@@ -39,7 +40,7 @@ namespace reference
 {
 namespace
 {
-    SimpleTensor<float> unbinarize(SimpleTensor<uint8_t> bin, TensorShape orig_shape, SimpleTensor<float> avg /* alpha or beta */, bool is_alpha)
+    SimpleTensor<float> unbinarize(SimpleTensor<uint8_t> bin, TensorShape orig_shape)
     {
         SimpleTensor<float> unbin{ orig_shape, DataType::F32 };
     
@@ -62,19 +63,7 @@ namespace
                         {
                             uint8_t bin_val    = ((bin_values & (1 << (7 - i))) >> (7 - i));
                             int     positivity = bin_val == 0 ? -1 : 1;
-                            
-                            if(is_alpha)
-                            {
-                                unbin[dst_idx++] = positivity * avg[batch];
-                            }
-                            else
-                            {
-                                Coordinates beta_coords{ coords };
-                                beta_coords.set(0, coords.x() + i);
-                                beta_coords.set(2, 0);
-                                                                
-                                unbin[dst_idx++] = positivity * avg[coords2index(avg.shape(), beta_coords)];
-                            }
+                            unbin[dst_idx++] = static_cast<float>(positivity);
                         }
                     }
                 }
@@ -95,8 +84,11 @@ SimpleTensor<float> binary_convolution(const SimpleTensor<float> &src, const Sim
     SimpleTensor<float>   beta{};
     SimpleTensor<float>   dummy{}; // For unused alpha/beta
     
+    const PaddingList padding { PaddingInfo(info.pad_left(), info.pad_right()), PaddingInfo(info.pad_top(), info.pad_bottom()) };
+    SimpleTensor<float> padded_src = pad_layer(src, padding);
+    
     std::tie(bin_weights, alpha, dummy) = binary_sign(weights);
-    std::tie(bin_src, dummy, beta)      = binary_sign(src);
+    std::tie(bin_src, dummy, beta)      = binary_sign(padded_src);
     
     // Normalize beta
     SimpleTensor<float> k{ TensorShape(weights.shape().x(), weights.shape().y()), DataType::F32 };
@@ -112,14 +104,47 @@ SimpleTensor<float> binary_convolution(const SimpleTensor<float> &src, const Sim
         dummy_bias[i] = 0.f;
     }
     
-    beta = convolution_layer(beta, k, dummy_bias, beta.shape(), info);
+    TensorShape K_shape = output_shape;
+    K_shape.set(2, 1);
+    SimpleTensor<float> K = convolution_layer(beta, k, dummy_bias, TensorShape(K_shape), PadStrideInfo()); // 2D K
+    SimpleTensor<float> Ka { output_shape, DataType::F32 }; // 3D Ka
     
-    // "Un-binarize" weights and src
-    SimpleTensor<float> unbin_weights = unbinarize(bin_weights, weights.shape(), alpha, true);
-    SimpleTensor<float> unbin_src     = unbinarize(bin_src, src.shape(), beta, false);
+    for(size_t batch = 0; batch < Ka.shape().total_size_upper(3); ++batch)
+    {
+        for(size_t plane = 0; plane < Ka.shape().z(); ++plane)
+        {
+            for(size_t row = 0; row < Ka.shape().y(); ++row)
+            {
+                for(size_t col = 0; col < Ka.shape().x(); ++col)
+                {                    
+                    const size_t Ka_idx = coords2index(Ka.shape(), Coordinates(col, row, plane, batch));
+                    const size_t K_idx  = coords2index(K.shape(), Coordinates(col, row, 0, batch));
+                    
+                    Ka[Ka_idx] = K[K_idx] * alpha[plane];
+                }
+            }
+        }
+    }
     
-    // Perform approximate convolution    
-    return convolution_layer(unbin_src, unbin_weights, bias, output_shape, info);
+    
+    SimpleTensor<float> dummy_bias2 { bias.shape(), DataType::F32 };
+    for(int i = 0; i < dummy_bias2.num_elements(); ++i)
+    {
+        dummy_bias2[i] = 0.f;
+    }
+    
+    // "Un-binarize" weights and src, perform convolution and apply normalization
+    SimpleTensor<float> unbin_weights = unbinarize(bin_weights, weights.shape());
+    SimpleTensor<float> unbin_src     = unbinarize(bin_src, padded_src.shape());
+    SimpleTensor<float> binary_conv   = convolution_layer(unbin_src, unbin_weights, dummy_bias2, output_shape, PadStrideInfo());
+    
+    SimpleTensor<float> dst { output_shape, DataType::F32 };
+    for(int i = 0; i < dst.num_elements(); ++i)
+    {
+        dst[i] = binary_conv[i] * Ka[i] + bias[index2coords(dst.shape(), i)[2]];
+    }
+    
+    return dst;
 }
 } // namespace reference
 } // namespace validation

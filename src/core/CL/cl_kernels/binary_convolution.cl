@@ -23,6 +23,8 @@
  */
 #include "helpers.h"
 
+#if defined(WEIGHTS_DEPTH)
+
 /** This function computes the binary convolution operation.
  *
  * @param[in]  src_ptr                               Pointer to the source tensor. Supported data types: F32
@@ -67,7 +69,7 @@
  * @param[in]  beta_offset_first_element_in_bytes    The offset of the first element in the beta tensor
  *
  */
-__kernel void binary_convolution(
+__kernel void binary_convolution_3x3(
     TENSOR3D_DECLARATION(src),
     TENSOR4D_DECLARATION(weights),
 #if defined(HAS_BIAS)
@@ -75,9 +77,103 @@ __kernel void binary_convolution(
 #endif // defined(HAS_BIAS)
     TENSOR3D_DECLARATION(dst),
     VECTOR_DECLARATION(alpha),
-    IMAGE_DECLERATION(BETA))
+    IMAGE_DECLARATION(beta))
 {
     // Calculate input/output addresses
-    Tensor3D src = CONVERT_TO_TENSOR3D_STRUCT(src);
-    // TODO
+    __global uchar *src_addr     = src_ptr + src_offset_first_element_in_bytes + get_global_id(0) * src_stride_x + get_global_id(1) * src_step_y;
+    __global uchar *weights_addr = weights_ptr + weights_offset_first_element_in_bytes + get_global_id(2) * weights_stride_w;
+    Tensor3D dst                 = CONVERT_TO_TENSOR3D_STRUCT(dst);
+    
+#if defined(HAS_BIAS)
+    __global uchar *biases_addr = biases_ptr + biases_offset_first_element_in_bytes + get_global_id(2) * biases_stride_x;
+#endif // defined(HAS_BIAS)
+    
+    __global uchar *alpha_addr = alpha_ptr + alpha_offset_first_element_in_bytes + get_global_id(2) * alpha_stride_x;
+    Image           beta       = CONVERT_TO_IMAGE_STRUCT(beta);
+    
+    float8 out_vals = 0;
+    for(volatile int d = 0; d < WEIGHTS_DEPTH; ++d)
+    {
+        uchar3 src_vals;
+        uchar3 next_byte; //TODO check for padding
+        uchar3 tmp = 0;
+        uchar3 weights_vals;
+        
+        src_vals.s0 = *(src_addr + 0 * src_stride_y);
+        src_vals.s1 = *(src_addr + 1 * src_stride_y);
+        src_vals.s2 = *(src_addr + 2 * src_stride_y);
+        
+        next_byte.s0 = *(src_addr + 0 * src_stride_y + src_stride_x);
+        next_byte.s1 = *(src_addr + 1 * src_stride_y + src_stride_x);
+        next_byte.s2 = *(src_addr + 2 * src_stride_y + src_stride_x);
+        
+        tmp = ((src_vals >> 1) << 7) | ((src_vals << 7) >> 1) | ((next_byte >> 7) << 5) | (((next_byte << 1) >> 7) << 4);
+        
+        weights_vals.s0 = *(weights_addr + 0 * weights_stride_y);
+        weights_vals.s1 = *(weights_addr + 1 * weights_stride_y);
+        weights_vals.s2 = *(weights_addr + 2 * weights_stride_y);
+        
+        weights_vals = (weights_vals >> 5) << 5;
+        
+        uchar8 mask = (uchar8)(255 >> 3);
+        mask.s1 = (mask.s0 >> 1) | 128;
+        mask.s2 = (mask.s1 >> 1) | 128;
+        mask.s3 = (mask.s2 >> 1) | 128;
+        mask.s4 = (mask.s3 >> 1) | 128;
+        mask.s5 = (mask.s4 >> 1) | 128;
+        
+        out_vals.s0 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s0) | weights_vals.s0))));
+        out_vals.s0 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s0) | weights_vals.s1))));
+        out_vals.s0 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s0) | weights_vals.s2))));
+
+        out_vals.s6 += popcount((uchar)(~(tmp.s0 ^ ((~tmp.s0 & mask.s0) | weights_vals.s0))));
+        out_vals.s6 += popcount((uchar)(~(tmp.s1 ^ ((~tmp.s1 & mask.s0) | weights_vals.s1))));
+        out_vals.s6 += popcount((uchar)(~(tmp.s2 ^ ((~tmp.s2 & mask.s0) | weights_vals.s2))));
+        weights_vals >>= 1;
+        
+        out_vals.s1 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s1) | weights_vals.s0))));
+        out_vals.s1 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s1) | weights_vals.s1))));
+        out_vals.s1 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s1) | weights_vals.s2))));
+        
+        out_vals.s7 += popcount((uchar)(~(tmp.s0 ^ ((~tmp.s0 & mask.s1) | weights_vals.s0))));
+        out_vals.s7 += popcount((uchar)(~(tmp.s1 ^ ((~tmp.s1 & mask.s1) | weights_vals.s1))));
+        out_vals.s7 += popcount((uchar)(~(tmp.s2 ^ ((~tmp.s2 & mask.s1) | weights_vals.s2))));
+        weights_vals >>= 1;
+        
+        out_vals.s2 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s2) | weights_vals.s0))));
+        out_vals.s2 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s2) | weights_vals.s1))));
+        out_vals.s2 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s2) | weights_vals.s2))));
+        weights_vals >>= 1;
+        
+        out_vals.s3 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s3) | weights_vals.s0))));
+        out_vals.s3 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s3) | weights_vals.s1))));
+        out_vals.s3 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s3) | weights_vals.s2))));
+        weights_vals >>= 1;
+        
+        out_vals.s4 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s4) | weights_vals.s0))));
+        out_vals.s4 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s4) | weights_vals.s1))));
+        out_vals.s4 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s4) | weights_vals.s2))));
+        weights_vals >>= 1;
+        
+        out_vals.s5 += popcount((uchar)(~(src_vals.s0 ^ ((~src_vals.s0 & mask.s5) | weights_vals.s0))));
+        out_vals.s5 += popcount((uchar)(~(src_vals.s1 ^ ((~src_vals.s1 & mask.s5) | weights_vals.s1))));
+        out_vals.s5 += popcount((uchar)(~(src_vals.s2 ^ ((~src_vals.s2 & mask.s5) | weights_vals.s2))));        
+
+        src_addr     += src_stride_z;
+        weights_addr += weights_stride_z;
+    }
+    
+    float8 tot_elems  = (float8)(9 * WEIGHTS_DEPTH);
+    float8 beta_vals  = vload8(0, (__global float *)beta.ptr);
+    float8 alpha_vals = (float8)(*((__global float *)alpha_addr));
+    
+    out_vals = ((float8)2 * out_vals - tot_elems) * (alpha_vals * beta_vals);
+#if defined(HAS_BIAS)
+    float8 biases_vals = (float8)(*((__global float *)biases_addr));
+    out_vals += biases_vals;
+#endif // defined(HAS_BIAS)
+    
+    vstore8(out_vals, 0, (__global float *)dst.ptr);
 }
+
+#endif // defined(WEIGHTS_DEPTH)

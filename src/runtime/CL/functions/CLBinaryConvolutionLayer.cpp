@@ -38,8 +38,8 @@ using namespace arm_compute;
 using namespace arm_compute::misc::shape_calculator;
 
 CLBinaryConvolutionLayer::CLBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager)
-    : _binarize_input(), _binarize_weights(), _binary_convolution(), _normalize_beta(), _binarized_input(), _binarized_weights(), _alpha(), _beta(), _k(),
-      _normalized_beta(), _is_prepared(false), _memory_manager(std::move(memory_manager))
+    : _pad_input(), _binarize_input(), _binarize_weights(), _binary_convolution(), _normalize_beta(), _padded_input(), _binarized_input(),
+      _binarized_weights(), _alpha(), _beta(), _k(), _normalized_beta(), _is_prepared(false), _memory_manager(std::move(memory_manager))
 {
 }
 
@@ -51,10 +51,15 @@ void CLBinaryConvolutionLayer::configure(ICLTensor *input, const ICLTensor *weig
     TensorShape k_shape(weights->info()->dimension(0), weights->info()->dimension(1));
     auto_init_if_empty(*_k.info(), output->info()->clone()->set_tensor_shape(k_shape));
     
+    const PaddingList padding { PaddingInfo(conv_info.pad_left(), conv_info.pad_right()), PaddingInfo(conv_info.pad_top(), conv_info.pad_bottom()) };
+    _pad_input.configure(input, &_padded_input, padding, PixelValue(0));
     _binarize_weights.configure(weights, &_binarized_weights, &_alpha);
-    _binarize_input.configure(input, &_binarized_input, nullptr, &_beta);
-    _normalize_beta.configure(&_beta, &_k, nullptr, &_normalized_beta, conv_info);
+    _binarize_input.configure(&_padded_input, &_binarized_input, nullptr, &_beta);
+    _normalize_beta.configure(&_beta, &_k, nullptr, &_normalized_beta, PadStrideInfo());
+    _binary_convolution.configure(&_binarized_input, &_binarized_weights, biases, output, PadStrideInfo(), &_alpha, &_normalized_beta,
+                                  Size2D(weights->info()->dimension(0), weights->info()->dimension(1)));
     
+    _padded_input.allocator()->allocate();
     _binarized_weights.allocator()->allocate();
     _binarized_input.allocator()->allocate();
     _alpha.allocator()->allocate();
@@ -76,9 +81,13 @@ void CLBinaryConvolutionLayer::run()
 {
     prepare();
     
+    _pad_input.run();
+    
     CLScheduler::get().enqueue(_binarize_input);
     
     _normalize_beta.run();
+    
+    CLScheduler::get().enqueue(_binary_convolution);
 }
 
 void CLBinaryConvolutionLayer::prepare()

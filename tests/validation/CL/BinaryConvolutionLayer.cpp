@@ -41,6 +41,10 @@ namespace test
 {
 namespace validation
 {
+namespace
+{
+constexpr RelativeTolerance<float> tolerance_f32(0.01f); /**< Tolerance value for comparing reference's output against implementation's output for DataType::F32 */
+} // namespace
 
 using CLBinaryConvolutionLayerFixture = BinaryConvolutionLayerValidationFixture<CLTensor, CLAccessor, CLBinaryConvolutionLayer>;
 
@@ -50,13 +54,13 @@ TEST_SUITE(BinaryConvolutionLayer)
 FIXTURE_DATA_TEST_CASE(RunSmall, CLBinaryConvolutionLayerFixture, framework::DatasetMode::ALL, combine(datasets::SmallConvolutionLayerDataset(),
                                framework::dataset::make("DataLayout", /*{*/ DataLayout::NCHW/*, DataLayout::NHWC }*/)))
 {
-    //validate(CLAccessor(_target), _reference);
+    validate(CLAccessor(_target), _reference, tolerance_f32);
 }
 
 FIXTURE_DATA_TEST_CASE(RunLarge, CLBinaryConvolutionLayerFixture, framework::DatasetMode::NIGHTLY, combine(datasets::LargeConvolutionLayerDataset(),
                                framework::dataset::make("DataLayout", /*{*/ DataLayout::NCHW/*, DataLayout::NHWC }*/)))
 {
-    //validate(CLAccessor(_target), _reference);
+    //validate(CLAccessor(_target), _reference, tolerance_f32);
 }
 
 TEST_SUITE_END()

@@ -117,6 +117,8 @@ protected:
         fill(AccessorType(src), 0);
         fill(AccessorType(weights), 1);
         fill(AccessorType(bias), 2);
+        //std::uniform_real_distribution<> distribution(0.f, 0.f);
+        //library->fill(AccessorType(bias), distribution, 2);
 
         // Compute function
         bc.run();
@@ -134,6 +136,8 @@ protected:
         fill(src, 0);
         fill(weights, 1);
         fill(bias, 2);
+        //std::uniform_real_distribution<> distribution(0.f, 0.f);
+        //library->fill(bias, distribution, 2);
 
         return reference::binary_convolution(src, weights, bias, out_shape, info);
     }
