@@ -21,14 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#include "arm_compute/runtime/CL/functions/CLBinaryConvolutionLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEBinaryConvolutionLayer.h"
 
-#include "arm_compute/core/CL/ICLTensor.h"
+#include "arm_compute/core/ITensor.h"
 #include "arm_compute/core/Utils.h"
 #include "arm_compute/core/Validate.h"
 #include "arm_compute/core/utils/misc/ShapeCalculator.h"
 #include "arm_compute/core/utils/quantization/AsymmHelpers.h"
-#include "arm_compute/runtime/CL/CLScheduler.h"
+#include "arm_compute/runtime/NEON/NEScheduler.h"
 
 #include <cmath>
 #include <memory>
@@ -37,16 +37,16 @@
 using namespace arm_compute;
 using namespace arm_compute::misc::shape_calculator;
 
-CLBinaryConvolutionLayer::CLBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager)
+NEBinaryConvolutionLayer::NEBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager)
     : _pad_input(), _binarize_input(), _binarize_weights(), _binary_convolution(), _normalize_beta(), _padded_input(), _binarized_input(),
       _binarized_weights(), _alpha(), _beta(), _K(), _is_prepared(false), _memory_manager(std::move(memory_manager))
 {
 }
 
-void CLBinaryConvolutionLayer::configure(ICLTensor *input, const ICLTensor *weights, const ICLTensor *biases, ICLTensor *output, const PadStrideInfo &conv_info)
+void NEBinaryConvolutionLayer::configure(ITensor *input, const ITensor *weights, const ITensor *biases, ITensor *output, const PadStrideInfo &conv_info)
 {
     ARM_COMPUTE_ERROR_ON_NULLPTR(input, weights, output);
-    ARM_COMPUTE_ERROR_THROW_ON(CLBinaryConvolutionLayer::validate(input->info(), weights->info(), ((biases != nullptr) ? biases->info() : nullptr), output->info(), conv_info));
+    ARM_COMPUTE_ERROR_THROW_ON(NEBinaryConvolutionLayer::validate(input->info(), weights->info(), ((biases != nullptr) ? biases->info() : nullptr), output->info(), conv_info));
     
     const PaddingList padding { PaddingInfo(conv_info.pad_left(), conv_info.pad_right()), PaddingInfo(conv_info.pad_top(), conv_info.pad_bottom()) };
     _pad_input.configure(input, &_padded_input, padding, PixelValue(0));
@@ -64,7 +64,7 @@ void CLBinaryConvolutionLayer::configure(ICLTensor *input, const ICLTensor *weig
     _K.allocator()->allocate();
 }
 
-Status CLBinaryConvolutionLayer::validate(const ITensorInfo *input, const ITensorInfo *weights, const ITensorInfo *biases, const ITensorInfo *output, const PadStrideInfo &conv_info)
+Status NEBinaryConvolutionLayer::validate(const ITensorInfo *input, const ITensorInfo *weights, const ITensorInfo *biases, const ITensorInfo *output, const PadStrideInfo &conv_info)
 {
     ARM_COMPUTE_RETURN_ERROR_ON_NULLPTR(input, weights, output);
     
@@ -73,24 +73,24 @@ Status CLBinaryConvolutionLayer::validate(const ITensorInfo *input, const ITenso
     return Status{};
 }
 
-void CLBinaryConvolutionLayer::run()
+void NEBinaryConvolutionLayer::run()
 {
     prepare();
     
     _pad_input.run();
     
-    CLScheduler::get().enqueue(_binarize_input);
+    NEScheduler::get().schedule(&_binarize_input, Window::DimX);
     
     _normalize_beta.run();
     
-    CLScheduler::get().enqueue(_binary_convolution);
+    NEScheduler::get().schedule(&_binary_convolution, Window::DimX);
 }
 
-void CLBinaryConvolutionLayer::prepare()
+void NEBinaryConvolutionLayer::prepare()
 {
     if(!_is_prepared)
     {
-        CLScheduler::get().enqueue(_binarize_weights);        
+        NEScheduler::get().schedule(&_binarize_weights, Window::DimX);        
         _is_prepared = true;
     }
 }

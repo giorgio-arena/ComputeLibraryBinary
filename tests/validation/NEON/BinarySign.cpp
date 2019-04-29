@@ -18,21 +18,20 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONCLCTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/core/NEON/kernels/NEBinarySignKernel.h"
 #include "arm_compute/core/Types.h"
-#include "arm_compute/runtime/CL/CLTensor.h"
-#include "arm_compute/runtime/CL/CLTensorAllocator.h"
-#include "arm_compute/runtime/CL/functions/CLBinaryConvolutionLayer.h"
-#include "tests/CL/CLAccessor.h"
-#include "tests/PaddingCalculator.h"
-#include "tests/datasets/SmallConvolutionLayerDataset.h"
+
+#include "tests/NEON/Accessor.h"
+#include "tests/NEON/Helper.h"
+#include "tests/datasets/ShapeDatasets.h"
 #include "tests/framework/Asserts.h"
 #include "tests/framework/Macros.h"
 #include "tests/framework/datasets/Datasets.h"
 #include "tests/validation/Validation.h"
-#include "tests/validation/fixtures/BinaryConvolutionLayerFixture.h"
+#include "tests/validation/fixtures/BinarySignFixture.h"
 
 namespace arm_compute
 {
@@ -45,15 +44,30 @@ namespace
 constexpr RelativeTolerance<float> tolerance_f32(0.01f); /**< Tolerance value for comparing reference's output against implementation's output for DataType::F32 */
 } // namespace
 
-using CLBinaryConvolutionLayerFixture = BinaryConvolutionLayerValidationFixture<CLTensor, CLAccessor, CLBinaryConvolutionLayer>;
+using NEBinarySign        = NESynthetizeFunction<NEBinarySignKernel>;
+using NEBinarySignFixture = BinarySignValidationFixture<Tensor, Accessor, NEBinarySign>;
 
-TEST_SUITE(CL)
-TEST_SUITE(BinaryConvolutionLayer)
+TEST_SUITE(NEON)
+TEST_SUITE(BinarySign)
 
-FIXTURE_DATA_TEST_CASE(RunSmall, CLBinaryConvolutionLayerFixture, framework::DatasetMode::ALL, combine(datasets::SmallBinaryConvolutionLayerDataset(),
-                               framework::dataset::make("DataLayout", /*{*/ DataLayout::NCHW/*, DataLayout::NHWC }*/)))
+FIXTURE_DATA_TEST_CASE(RunSmall, NEBinarySignFixture, framework::DatasetMode::ALL, datasets::SmallShapes())
 {
-    validate(CLAccessor(_target), _reference, tolerance_f32);
+    // Validate output
+    validate(Accessor(_target_out), _reference_out);
+    // Validate alpha
+    validate(Accessor(_target_alpha), _reference_alpha, tolerance_f32);
+    // Validate beta
+    validate(Accessor(_target_beta), _reference_beta, tolerance_f32);
+}
+
+FIXTURE_DATA_TEST_CASE(RunLarge, NEBinarySignFixture, framework::DatasetMode::NIGHTLY, datasets::LargeShapes())
+{
+    // Validate output
+    validate(Accessor(_target_out), _reference_out);
+    // Validate alpha
+    validate(Accessor(_target_alpha), _reference_alpha, tolerance_f32);
+    // Validate beta
+    validate(Accessor(_target_beta), _reference_beta, tolerance_f32);
 }
 
 TEST_SUITE_END()

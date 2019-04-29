@@ -31,6 +31,7 @@
 #include "arm_compute/runtime/CL/functions/CLArgMinMaxLayer.h"
 #include "arm_compute/runtime/CL/functions/CLBatchNormalizationLayer.h"
 #include "arm_compute/runtime/CL/functions/CLBatchToSpaceLayer.h"
+#include "arm_compute/runtime/CL/functions/CLBinaryConvolutionLayer.h"
 #include "arm_compute/runtime/CL/functions/CLBitwiseAnd.h"
 #include "arm_compute/runtime/CL/functions/CLBitwiseNot.h"
 #include "arm_compute/runtime/CL/functions/CLBitwiseOr.h"

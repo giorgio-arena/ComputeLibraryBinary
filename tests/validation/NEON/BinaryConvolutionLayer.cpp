@@ -22,10 +22,8 @@
  * SOFTWARE.
  */
 #include "arm_compute/core/Types.h"
-#include "arm_compute/runtime/CL/CLTensor.h"
-#include "arm_compute/runtime/CL/CLTensorAllocator.h"
-#include "arm_compute/runtime/CL/functions/CLBinaryConvolutionLayer.h"
-#include "tests/CL/CLAccessor.h"
+#include "arm_compute/runtime/NEON/functions/NEBinaryConvolutionLayer.h"
+#include "tests/NEON/Accessor.h"
 #include "tests/PaddingCalculator.h"
 #include "tests/datasets/SmallConvolutionLayerDataset.h"
 #include "tests/framework/Asserts.h"
@@ -45,15 +43,15 @@ namespace
 constexpr RelativeTolerance<float> tolerance_f32(0.01f); /**< Tolerance value for comparing reference's output against implementation's output for DataType::F32 */
 } // namespace
 
-using CLBinaryConvolutionLayerFixture = BinaryConvolutionLayerValidationFixture<CLTensor, CLAccessor, CLBinaryConvolutionLayer>;
+using NEBinaryConvolutionLayerFixture = BinaryConvolutionLayerValidationFixture<Tensor, Accessor, NEBinaryConvolutionLayer>;
 
-TEST_SUITE(CL)
+TEST_SUITE(NEON)
 TEST_SUITE(BinaryConvolutionLayer)
 
-FIXTURE_DATA_TEST_CASE(RunSmall, CLBinaryConvolutionLayerFixture, framework::DatasetMode::ALL, combine(datasets::SmallBinaryConvolutionLayerDataset(),
+FIXTURE_DATA_TEST_CASE(RunSmall, NEBinaryConvolutionLayerFixture, framework::DatasetMode::ALL, combine(datasets::SmallBinaryConvolutionLayerDataset(),
                                framework::dataset::make("DataLayout", /*{*/ DataLayout::NCHW/*, DataLayout::NHWC }*/)))
 {
-    validate(CLAccessor(_target), _reference, tolerance_f32);
+    validate(Accessor(_target), _reference, tolerance_f32);
 }
 
 TEST_SUITE_END()

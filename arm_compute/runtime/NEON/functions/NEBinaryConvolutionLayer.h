@@ -21,15 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-#ifndef __ARM_COMPUTE_CLBINARYCONVOLUTIONLAYER_H__
-#define __ARM_COMPUTE_CLBINARYCONVOLUTIONLAYER_H__
+#ifndef __ARM_COMPUTE_NEBINARYCONVOLUTIONLAYER_H__
+#define __ARM_COMPUTE_NEBINARYCONVOLUTIONLAYER_H__
 
-#include "arm_compute/core/CL/kernels/CLBinarySignKernel.h"
-#include "arm_compute/core/CL/kernels/CLBinaryConvolutionKernel.h"
+#include "arm_compute/core/NEON/kernels/NEBinarySignKernel.h"
+#include "arm_compute/core/NEON/kernels/NEBinaryConvolutionKernel.h"
 #include "arm_compute/core/Types.h"
-#include "arm_compute/runtime/CL/functions/CLConvolutionLayer.h"
-#include "arm_compute/runtime/CL/functions/CLPadLayer.h"
-#include "arm_compute/runtime/CL/functions/CLPoolingLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEConvolutionLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEPadLayer.h"
+#include "arm_compute/runtime/NEON/functions/NEPoolingLayer.h"
 #include "arm_compute/runtime/IFunction.h"
 #include "arm_compute/runtime/IMemoryManager.h"
 
@@ -37,23 +37,23 @@
 
 namespace arm_compute
 {
-class ICLTensor;
+class ITensor;
 
-/** Basic function to compute the binary convolution layer. This function calls the following OpenCL kernels/functions: TODO
+/** Basic function to compute the binary convolution layer. This function calls the following NEON kernels/functions: TODO
  */
-class CLBinaryConvolutionLayer : public IFunction
+class NEBinaryConvolutionLayer : public IFunction
 {   
 public:
     /** Default constructor */
-    CLBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager = nullptr);
+    NEBinaryConvolutionLayer(std::shared_ptr<IMemoryManager> memory_manager = nullptr);
     /** Prevent instances of this class from being copied (As this class contains pointers) */
-    CLBinaryConvolutionLayer(const CLBinaryConvolutionLayer &) = delete;
+    NEBinaryConvolutionLayer(const NEBinaryConvolutionLayer &) = delete;
     /** Default move constructor */
-    CLBinaryConvolutionLayer(CLBinaryConvolutionLayer &&) = default;
+    NEBinaryConvolutionLayer(NEBinaryConvolutionLayer &&) = default;
     /** Prevent instances of this class from being copied (As this class contains pointers) */
-    CLBinaryConvolutionLayer &operator=(const CLBinaryConvolutionLayer &) = delete;
+    NEBinaryConvolutionLayer &operator=(const NEBinaryConvolutionLayer &) = delete;
     /** Default move assignment operator */
-    CLBinaryConvolutionLayer &operator=(CLBinaryConvolutionLayer &&) = default;
+    NEBinaryConvolutionLayer &operator=(NEBinaryConvolutionLayer &&) = default;
     /** Set the input and output tensors.
      *
      * @param[in]  input            Source tensor. 3 lower dimensions represent a single input [width, height, IFM],
@@ -67,8 +67,8 @@ public:
      * @param[in]  conv_info        Contains padding and stride information described in @ref PadStrideInfo.
      * 
      */
-    void configure(ICLTensor *input, const ICLTensor *weights, const ICLTensor *biases, ICLTensor *output, const PadStrideInfo &conv_info);
-    /** Static function to check if given info will lead to a valid configuration of @ref CLBinaryConvolutionLayer
+    void configure(ITensor *input, const ITensor *weights, const ITensor *biases, ITensor *output, const PadStrideInfo &conv_info);
+    /** Static function to check if given info will lead to a valid configuration of @ref NEBinaryConvolutionLayer
      *
      * @param[in] input            Source tensor. 3 lower dimensions represent a single input [width, height, IFM],
      *                             while every optional dimension from 4 and above represent a batch of inputs.
@@ -88,17 +88,17 @@ public:
     void prepare() override;
 
 private:
-    CLPadLayer                      _pad_input;
-    CLBinarySignKernel              _binarize_input;
-    CLBinarySignKernel              _binarize_weights;
-    CLBinaryConvolutionKernel       _binary_convolution;
-    CLPoolingLayer                  _normalize_beta;
-    CLTensor                        _padded_input;
-    CLTensor                        _binarized_input;
-    CLTensor                        _binarized_weights;
-    CLTensor                        _alpha;
-    CLTensor                        _beta;
-    CLTensor                        _K;
+    NEPadLayer                      _pad_input;
+    NEBinarySignKernel              _binarize_input;
+    NEBinarySignKernel              _binarize_weights;
+    NEBinaryConvolutionKernel       _binary_convolution;
+    NEPoolingLayer                  _normalize_beta;
+    Tensor                          _padded_input;
+    Tensor                          _binarized_input;
+    Tensor                          _binarized_weights;
+    Tensor                          _alpha;
+    Tensor                          _beta;
+    Tensor                          _K;
     bool                            _is_prepared;
     std::shared_ptr<IMemoryManager> _memory_manager;
 };

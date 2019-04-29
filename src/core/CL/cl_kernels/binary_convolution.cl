@@ -96,7 +96,7 @@ __kernel void binary_convolution_3x3(
     {
         uchar3 src_vals;
         uchar3 next_byte; //TODO check for padding
-        uchar3 tmp = 0;
+        uchar3 tmp = 0; // TODO rename (even NEON)
         uchar3 weights_vals;
         
         src_vals.s0 = *(src_addr + 0 * src_stride_y);

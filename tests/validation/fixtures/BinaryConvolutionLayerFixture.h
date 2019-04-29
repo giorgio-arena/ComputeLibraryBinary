@@ -119,6 +119,7 @@ protected:
         fill(AccessorType(bias), 2);
         //std::uniform_real_distribution<> distribution(0.f, 0.f);
         //library->fill(AccessorType(bias), distribution, 2);
+        // TODO REMOVE
 
         // Compute function
         bc.run();
@@ -138,6 +139,7 @@ protected:
         fill(bias, 2);
         //std::uniform_real_distribution<> distribution(0.f, 0.f);
         //library->fill(bias, distribution, 2);
+        // TODO REMOVE
 
         return reference::binary_convolution(src, weights, bias, out_shape, info);
     }
